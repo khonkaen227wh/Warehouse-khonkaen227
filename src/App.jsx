@@ -179,6 +179,7 @@ const QRCodeDisplay = ({ url, size = 220 }) => (
 );
 
 const QR_ITEMS = [
+  { mode: "hub", url: "https://warehouse-khonkaen227.vercel.app/", emoji: "🚩", label: "หน้ารวมการทำงาน", color: "#16a34a", bg: "#f0fdf4" },
   { mode: "driver",        emoji: "🚛", label: "คนขับ เช็คอิน",     color: "#111",    bg: "#f9fafb" },
   { mode: "dashboard_transport", emoji: "📊", label: "Dashboard ขนส่ง", color: "#0ea5e9", bg: "#f0f9ff" },
   { mode: "qc_parts",      emoji: "🌡️", label: "ลานโหลด ชิ้นส่วน",      color: "#0369a1", bg: "#f0f9ff" },
@@ -242,13 +243,13 @@ const QRCodePage = () => {
     const lane = laneId && lanes.find(l => l.id === laneId);
     return lane ? { ...i, label: `${QR_LANE_LABEL_PREFIX[i.mode]} ${lane.tinyLabel}` } : i;
   });
-  const topRowItems = items.filter(i => i.mode === "driver" || i.mode === "dashboard_transport");
-  const restItems    = items.filter(i => i.mode !== "driver" && i.mode !== "dashboard_transport");
+  const topRowItems = items.filter(i => i.mode === "hub" || i.mode === "driver" || i.mode === "dashboard_transport");
+  const restItems    = items.filter(i => i.mode !== "hub" && i.mode !== "driver" && i.mode !== "dashboard_transport");
 
-  const renderCard = ({ mode, emoji, label, color, bg }) => {
-    const url = `${base}?mode=${mode}`;
+  const renderCard = ({ mode, emoji, label, color, bg, url: fixedUrl }) => {
+    const url = fixedUrl || `${base}?mode=${mode}`;
     return (
-      <div key={mode} onClick={() => setZoomItem({ mode, emoji, label, color, bg })}
+      <div key={mode} onClick={() => setZoomItem({ mode, emoji, label, color, bg, url: fixedUrl })}
         style={{ background: "#fff", borderRadius: 0, padding: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.08)", border: `2px solid ${color}20`, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer" }}>
         <div style={{ width: "100%", background: color, borderRadius: 0, padding: "4px 0", textAlign: "center", color: "#fff", fontWeight: 900, fontSize: 10 }}>
           {emoji} {label}
@@ -291,7 +292,7 @@ const QRCodePage = () => {
       </div>
 
       {zoomItem && (() => {
-        const url = `${base}?mode=${zoomItem.mode}`;
+        const url = zoomItem.url || `${base}?mode=${zoomItem.mode}`;
         return (
           <div onClick={() => setZoomItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, cursor: "zoom-out" }}>
             <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 0, padding: 28, maxWidth: 360, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 14, cursor: "default" }}>
