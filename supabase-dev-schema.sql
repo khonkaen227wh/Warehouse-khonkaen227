@@ -22,6 +22,20 @@ alter table wh_queue enable row level security;
 drop policy if exists "allow all" on wh_queue;
 create policy "allow all" on wh_queue for all using (true) with check (true);
 
+-- ─── wh_queue_next ─────────────────────────────────────────
+-- คิวรถของวันทำงานถัดไปที่ LG อัปโหลดล่วงหน้า (แท็ป "อัปโหลดล่วงหน้า" ในหน้า LG)
+-- แยกจาก wh_queue โดยสมบูรณ์ — ไม่กระทบคิวของวันทำงานปัจจุบัน
+-- ถูกย้ายเข้า wh_queue อัตโนมัติแล้วล้างว่าง ตอนข้ามรอบวันทำงาน (close_work_day()
+-- ใน supabase-auto-close-10am.sql หรือปุ่ม "ล้างวันใหม่" — handleReset ใน App.jsx)
+create table if not exists wh_queue_next (
+  id   text primary key,
+  data jsonb
+);
+
+alter table wh_queue_next enable row level security;
+drop policy if exists "allow all" on wh_queue_next;
+create policy "allow all" on wh_queue_next for all using (true) with check (true);
+
 -- ─── wh_trucks ─────────────────────────────────────────────
 -- รถแต่ละคัน หนึ่งแถวต่อคัน — data.qcLanes / data.loadLanes / data.sampleLanes
 -- เก็บแยกกันคนละ field ในก้อน JSON เดียวกัน ไม่ชนกัน:
