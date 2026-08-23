@@ -24,7 +24,7 @@ export const settings = {
 const SETTERS = {
   work_day_cutoff_hour:  v => { const n = Number(v); if (Number.isFinite(n) && n >= 0 && n < 24) settings.workDayCutoffHour = n; },
   waiting_urgent_minutes: v => { const n = Number(v); if (Number.isFinite(n) && n > 0) settings.waitingUrgentMinutes = n; },
-  max_photo_uploads:     v => { const n = Number(v); if (Number.isFinite(n) && n > 0) settings.maxPhotoUploads = n; },
+  max_photo_uploads:     v => { const n = Number(v); if (Number.isFinite(n) && n >= 1 && n <= 15) settings.maxPhotoUploads = n; },
   max_waiting_reasons:   v => { const n = Number(v); if (Number.isFinite(n) && n > 0) settings.maxWaitingReasons = n; },
   geofence:              v => { if (v && typeof v === "object") settings.geofence = { ...settings.geofence, ...v }; },
   facility_name:            v => { if (typeof v === "string" && v.trim()) settings.facilityName = v; },
