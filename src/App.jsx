@@ -129,6 +129,15 @@ async function uploadPhotos(folder, plate, photos) {
   return urls;
 }
 
+// ─── ค้นหาทะเบียนรถ: จับคู่แบบ normalize ทั้งเส้น ไม่ใช่ substring ─────────────
+// (substring match ทำให้ "4958" ไปจับกับ "3ผส-4958JC" ทั้งที่เป็นคนละคัน)
+const normalizePlate = s => String(s || "").toLowerCase().replace(/[\s\-]/g, "");
+function plateMatchesQuery(plate, query) {
+  const q = normalizePlate(query);
+  if (!q) return true;
+  return normalizePlate(plate) === q;
+}
+
 // ─── GEOFENCE (พิกัด/รัศมีอ่านจาก settings.geofence) ──────────────────────────
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -959,7 +968,7 @@ const Dashboard = ({ trucks, queue, onReset, lane, detailMap, title, myPlate, si
     return getRemMins(a) - getRemMins(b);
   });
   const visibleRows = searchPlate.trim()
-    ? allRows.filter(r => r.plate?.toLowerCase().includes(searchPlate.trim().toLowerCase()))
+    ? allRows.filter(r => plateMatchesQuery(r.plate, searchPlate))
     : allRows;
 
   return (
@@ -1643,7 +1652,7 @@ const Picking = ({ trucks, queue, onUpdate, detailMapByChannel = {} }) => {
   }).filter(row => !settings.excludedCustomerGroups.includes(row.customerGroup));
 
   const [searchQuery, setSearchQuery] = useState("");
-  const filteredRows = allRows.filter(r => r.plate.includes(searchQuery));
+  const filteredRows = allRows.filter(r => plateMatchesQuery(r.plate, searchQuery));
 
   const canStep3 = t => t?.status === "arrived";
   const doneStep3 = t => t && ["picking","summary_printed","invoiced"].includes(t.status);
