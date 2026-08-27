@@ -5832,20 +5832,21 @@ export default function App() {
 
   const handleUpdate = async (id, upd) => {
     const truck = trucks.find(t => t.id === id);
-    if (!truck) throw new Error("ไม่พบข้อมูลรถคันนี้ในเครื่อง กรุณารีเฟรชหน้าจอแล้วลองใหม่");
 
     if (upd.loadLanes) {
        for (const lane of Object.keys(upd.loadLanes)) {
-         if (upd.loadLanes[lane].done && (!truck.loadLanes || !truck.loadLanes[lane] || !truck.loadLanes[lane].done)) {
+         if (upd.loadLanes[lane].done && (!truck?.loadLanes || !truck.loadLanes[lane] || !truck.loadLanes[lane].done)) {
            const lName = lanes.find(l => l.id === lane)?.tinyLabel || lane;
            const imgs = upd.loadLanes[lane].photos || [];
-           sendTeamsNotification(`✅ โหลดเสร็จ — รถ ${truck.plate}`, { "ลานโหลด": lName, "เวลาโหลดเสร็จ": upd.loadLanes[lane].doneAt || TIME_NOW() }, imgs);
+           sendTeamsNotification(`✅ โหลดเสร็จ — รถ ${truck?.plate ?? ""}`, { "ลานโหลด": lName, "เวลาโหลดเสร็จ": upd.loadLanes[lane].doneAt || TIME_NOW() }, imgs);
          }
        }
     }
 
-    const updated = { ...truck, ...upd };
-    const { error } = await supabase.from("wh_trucks").upsert({ id, data: updated });
+    // merge แบบ atomic ฝั่ง DB (data = data || patch ใน wh_trucks_patch) กัน race ที่สอง
+    // action แก้รถคันเดียวกันพร้อมกันคนละ field (เช่น QC วัดอุณหภูมิ พร้อมกับ Picking พิมพ์ใบเบิก)
+    // แล้วฝั่งที่บันทึกทีหลังทับข้อมูลของอีกฝั่งทิ้งแบบเงียบๆ เพราะ merge จาก cache เก่าใน client
+    const { data: updated, error } = await supabase.rpc("wh_trucks_patch", { p_id: id, p_patch: upd });
     if (error) throw error;
     setTrucks(prev => prev.map(t => t.id === id ? updated : t));
 
