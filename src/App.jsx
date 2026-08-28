@@ -5884,9 +5884,12 @@ export default function App() {
     }
     setQueue(newQueue);
     // merge walk-in trucks กับ queue entries แบบ one-to-one เรียงตาม seq
+    // ข้ามรถที่ invoiced ไปแล้ว (จบทริปสมบูรณ์แล้ว) ไม่ให้ถูกจับคู่ไปผูกกับคิวใหม่ที่เพิ่งอัปโหลด/แก้ไข
+    // เพราะจะทำให้คิวใหม่ถูกนับว่า "เช็คอินแล้ว" ทั้งที่ยังไม่มีรถจริงมา และคนขับจริงเช็คอินไม่ได้
     const sortedQueue = [...newQueue].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
     const usedQueueIds = new Set();
     for (const truck of trucks) {
+      if (truck.status === "invoiced") continue;
       const match = sortedQueue.find(q => plateNum(q.plate) === plateNum(truck.plate) && plateNum(q.plate) !== "" && !usedQueueIds.has(q.id));
       if (!match) continue;
       usedQueueIds.add(match.id);
