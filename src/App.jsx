@@ -1897,7 +1897,7 @@ const BaySelect = ({ laneId, actLane, title, onSelect, onBack }) => {
 };
 
 // ── 4. QC (per-lane) ──────────────────────────────────────────────────────────
-const QC = ({ trucks, onUpdate, laneId, detailMapByChannel = {}, onBack }) => {
+const QC = ({ trucks, onUpdate, onUpdateLane, laneId, detailMapByChannel = {}, onBack }) => {
   const [selId,     setSelId]     = useState("");
   const lane = laneId;
   const [temp,      setTemp]      = useState("");
@@ -1933,8 +1933,7 @@ const QC = ({ trucks, onUpdate, laneId, detailMapByChannel = {}, onBack }) => {
     const doneAt = TIME_NOW(); // ก่อนอัพโหลดรูป — เวลาที่บันทึกต้องเป็นเวลาที่ทำจริง ไม่ใช่เวลาที่อัพโหลดรูปเสร็จ (อาจช้ากว่าจริงถ้าเน็ตช้า)
     try {
       const photoUrls = await uploadPhotos(`qc`, sel.plate, Array.isArray(photo) ? photo : (photo ? [photo] : []));
-      const qcLanes = { ...(sel.qcLanes || {}), [lane]: { done: true, temp, photos: photoUrls, doneAt, bayId: bay?.id || null } };
-      await onUpdate(sel.id, { qcLanes });
+      await onUpdateLane(sel.id, "qcLanes", lane, { done: true, temp, photos: photoUrls, doneAt, bayId: bay?.id || null }, true);
       setFlashLane(lane); setTemp(""); setPhoto(null);
       setTimeout(() => setFlashLane(null), 2500);
     } catch (e) {
@@ -2031,7 +2030,7 @@ const QC = ({ trucks, onUpdate, laneId, detailMapByChannel = {}, onBack }) => {
 };
 
 // ── 4b. RANDOM SAMPLE CHECK (per-lane, photo only, no temp) ───────────────────
-const RandomSampleCheck = ({ trucks, onUpdate, laneId, detailMapByChannel = {}, onBack }) => {
+const RandomSampleCheck = ({ trucks, onUpdate, onUpdateLane, laneId, detailMapByChannel = {}, onBack }) => {
   const [selId,     setSelId]     = useState("");
   const lane = laneId;
   const [photo,     setPhoto]     = useState(null);
@@ -2067,8 +2066,7 @@ const RandomSampleCheck = ({ trucks, onUpdate, laneId, detailMapByChannel = {}, 
     const doneAt = TIME_NOW(); // ก่อนอัพโหลดรูป — เวลาที่บันทึกต้องเป็นเวลาที่ทำจริง ไม่ใช่เวลาที่อัพโหลดรูปเสร็จ (อาจช้ากว่าจริงถ้าเน็ตช้า)
     try {
       const photoUrls = await uploadPhotos(`sample`, sel.plate, photos);
-      const sampleLanes = { ...(sel.sampleLanes || {}), [lane]: { done: true, photos: photoUrls, note, doneAt, bayId: bay?.id || null } };
-      await onUpdate(sel.id, { sampleLanes });
+      await onUpdateLane(sel.id, "sampleLanes", lane, { done: true, photos: photoUrls, note, doneAt, bayId: bay?.id || null }, true);
       setFlashLane(lane); setPhoto(null); setNote("");
       setTimeout(() => setFlashLane(null), 2500);
     } catch (e) {
@@ -2167,7 +2165,7 @@ const RandomSampleCheck = ({ trucks, onUpdate, laneId, detailMapByChannel = {}, 
 };
 
 // ── 5. LOADING YARD (per-lane gate) ───────────────────────────────────────────
-const LoadingYard = ({ trucks, onUpdate, laneId, masterLane = [], onBack }) => {
+const LoadingYard = ({ trucks, onUpdate, onUpdateLane, laneId, masterLane = [], onBack }) => {
   const [activeLane, setActiveLane] = useState(laneId ?? "lane_parts");
   const [bayId, setBayId] = useState(null);
   const emptyBaskets = () => ({ ...Object.fromEntries(basketTypes.map(b => [b.key, ""])), payer: "" });
@@ -2239,8 +2237,7 @@ const LoadingYard = ({ trucks, onUpdate, laneId, masterLane = [], onBack }) => {
     setWaitingModal(false);
     setF(activeLane, { uploading: true });
     try {
-      const loadLanes = { ...(sel.loadLanes || {}), [activeLane]: { ...(sel.loadLanes?.[activeLane] || {}), waiting: true, waitingAt: TIME_NOW(), waitingFor: combinedReason, note: form.note, bayId: bay?.id || null } };
-      await onUpdate(sel.id, { loadLanes });
+      await onUpdateLane(sel.id, "loadLanes", activeLane, { waiting: true, waitingAt: TIME_NOW(), waitingFor: combinedReason, note: form.note, bayId: bay?.id || null });
       setF(activeLane, { selId: "", photo: null, note: "", uploading: false, baskets: emptyBaskets() });
     } catch (e) {
       alert("บันทึกไม่สำเร็จ: " + e.message);
@@ -2256,11 +2253,9 @@ const LoadingYard = ({ trucks, onUpdate, laneId, masterLane = [], onBack }) => {
     try {
       const photos = Array.isArray(form.photo) ? form.photo : (form.photo ? [form.photo] : []);
       const photoUrls = await uploadPhotos(`loading/${activeLane}`, sel.plate, photos);
-      const existing = sel.loadLanes?.[activeLane] || {};
       const baskets = Object.fromEntries(basketTypes.map(b => [b.key, Number(form.baskets?.[b.key]) || 0]));
       const basketPayer = (form.baskets?.payer || "").trim();
-      const loadLanes = { ...(sel.loadLanes || {}), [activeLane]: { ...existing, done: true, photos: photoUrls, note: form.note, doneAt, baskets, basketPayer, bayId: bay?.id || null } };
-      await onUpdate(sel.id, { loadLanes });
+      await onUpdateLane(sel.id, "loadLanes", activeLane, { done: true, photos: photoUrls, note: form.note, doneAt, baskets, basketPayer, bayId: bay?.id || null });
       setF(activeLane, { selId: "", photo: null, note: "", flash: true, uploading: false, baskets: emptyBaskets() });
       setTimeout(() => setF(activeLane, { flash: false }), 2500);
     } catch (e) {
@@ -4145,11 +4140,15 @@ const BaySettings = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN
 // ─────────────────────────────────────────────────────────────────────────────
-const Admin = ({ trucks, queue, onUpdate, onDeleteTruck }) => {
+const Admin = ({ trucks, queue, onUpdate, onUpdateLane, onDeleteTruck }) => {
   const [selId,   setSelId]   = useState("");
   const [form,    setForm]    = useState(null);
   const [msg,     setMsg]     = useState("");
   const [mergeId, setMergeId] = useState("");
+  // lane ที่ถูกแก้ในฟอร์มนี้ตั้งแต่เปิดรถคันปัจจุบัน — key: "qcLanes:lane_parts" → { replace }
+  // ใช้ตอน save() ส่ง patch เฉพาะ lane ที่แตะจริงผ่าน onUpdateLane (atomic ที่ DB)
+  // แทนที่จะส่ง qcLanes/loadLanes ทั้งก้อนซึ่งอาจเป็น snapshot เก่าทับข้อมูลสดจากอุปกรณ์อื่น
+  const dirtyLanesRef = useRef(new Map());
 
   const truck  = trucks.find(t => t.id === selId);
 
@@ -4160,7 +4159,51 @@ const Admin = ({ trucks, queue, onUpdate, onDeleteTruck }) => {
   const queueZones  = [...new Set(matchedQueue.map(q => q.zone).filter(Boolean))];
   const queueGroups = [...new Set(matchedQueue.map(q => q.customerGroup).filter(Boolean))];
 
+  // ประวัติการแก้ไข — อ่านจาก wh_trucks_history (audit trigger, ดู supabase-add-lane-patch-and-audit.sql)
+  // เพื่อให้ตรวจสอบย้อนหลังได้ว่าข้อมูลรถคันนี้เปลี่ยนอะไรไปบ้าง เมื่อไหร่ ไม่ว่าจะเขียนผ่านช่องทางไหน
+  const [history,        setHistory]        = useState([]);
+  const [historyOpen,    setHistoryOpen]    = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => { setHistoryOpen(false); setHistory([]); }, [selId]);
+
+  const loadHistory = async () => {
+    if (!selId) return;
+    setHistoryLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("wh_trucks_history")
+        .select("*")
+        .eq("truck_id", selId)
+        .order("changed_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setHistory(data || []);
+    } catch (e) {
+      alert("โหลดประวัติไม่สำเร็จ: " + e.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const diffFields = (oldD, newD) => {
+    const o = oldD || {}, n = newD || {};
+    const out = [];
+    for (const k of new Set([...Object.keys(o), ...Object.keys(n)])) {
+      if (JSON.stringify(o[k]) === JSON.stringify(n[k])) continue;
+      if (["qcLanes", "sampleLanes", "loadLanes"].includes(k) && (o[k] || n[k])) {
+        for (const lid of new Set([...Object.keys(o[k] || {}), ...Object.keys(n[k] || {})])) {
+          if (JSON.stringify(o[k]?.[lid]) !== JSON.stringify(n[k]?.[lid])) out.push(`${k}.${lid}`);
+        }
+      } else {
+        out.push(k);
+      }
+    }
+    return out;
+  };
+
   useEffect(() => {
+    dirtyLanesRef.current = new Map();
     if (!truck) { setForm(null); setMsg(""); return; }
     setForm({
       queueId:       truck.queueId       || "",
@@ -4185,7 +4228,15 @@ const Admin = ({ trucks, queue, onUpdate, onDeleteTruck }) => {
   const save = async () => {
     setSaving(true);
     try {
-      await onUpdate(selId, form);
+      const { qcLanes: _qcLanes, loadLanes: _loadLanes, ...flat } = form;
+      await onUpdate(selId, flat);
+      // ส่งเฉพาะ lane ที่แตะจริงในฟอร์มนี้ผ่าน patch แบบ atomic ต่อ lane — lane อื่นที่ไม่ได้แตะ
+      // จะไม่ถูกส่งไปทับเลย ไม่ว่า qcLanes/loadLanes ในฟอร์ม (สแนปช็อตตอนเปิดหน้า) จะเก่าแค่ไหน
+      for (const [key, { replace }] of dirtyLanesRef.current) {
+        const [field, lid] = key.split(":");
+        await onUpdateLane(selId, field, lid, form[field][lid] || {}, replace);
+      }
+      dirtyLanesRef.current = new Map();
       setMsg("✅ บันทึกแล้ว");
       setTimeout(() => setMsg(""), 2500);
     } catch (e) {
@@ -4203,13 +4254,14 @@ const Admin = ({ trucks, queue, onUpdate, onDeleteTruck }) => {
     setMerging(true);
     try {
       // merge lane-by-lane: T-1 (target) มีสิทธิ์ก่อน ถ้า T-1 ไม่มีค่อยเอาของ T-2
-      const mergedQC   = { ...(src.qcLanes   || {}) };
-      const mergedLoad = { ...(src.loadLanes  || {}) };
+      // เขียนทีละ lane ผ่าน onUpdateLane (atomic, replace ทั้ง lane) แทนส่ง qcLanes/loadLanes
+      // ทั้งก้อนในคำสั่งเดียว กันชนกับการสแกน QC/โหลดสดที่อาจเกิดขึ้นระหว่าง merge
       for (const l of lanes) {
-        if (truck.qcLanes?.[l.id]?.done)   mergedQC[l.id]   = truck.qcLanes[l.id];
-        if (truck.loadLanes?.[l.id]?.done)  mergedLoad[l.id] = truck.loadLanes[l.id];
+        const qcVal = truck.qcLanes?.[l.id]?.done ? truck.qcLanes[l.id] : (src.qcLanes?.[l.id] || null);
+        if (qcVal) await onUpdateLane(selId, "qcLanes", l.id, qcVal, true);
+        const loadVal = truck.loadLanes?.[l.id]?.done ? truck.loadLanes[l.id] : (src.loadLanes?.[l.id] || null);
+        if (loadVal) await onUpdateLane(selId, "loadLanes", l.id, loadVal, true);
       }
-      await onUpdate(selId, { qcLanes: mergedQC, loadLanes: mergedLoad });
       await onDeleteTruck(mergeId);
       setMergeId("");
       setMsg("✅ Merge สำเร็จ — ลบรถซ้ำแล้ว");
@@ -4221,10 +4273,11 @@ const Admin = ({ trucks, queue, onUpdate, onDeleteTruck }) => {
     }
   };
 
-  const setQC   = (lid, key, val) => setForm(f => ({ ...f, qcLanes:   { ...f.qcLanes,   [lid]: { ...(f.qcLanes[lid]   || {}), [key]: val } } }));
-  const setLoad = (lid, key, val) => setForm(f => ({ ...f, loadLanes: { ...f.loadLanes, [lid]: { ...(f.loadLanes[lid] || {}), [key]: val } } }));
-  const resetQC   = (lid) => setForm(f => ({ ...f, qcLanes:   { ...f.qcLanes,   [lid]: {} } }));
-  const resetLoad = (lid) => setForm(f => ({ ...f, loadLanes: { ...f.loadLanes, [lid]: {} } }));
+  const markDirty = (field, lid, replace) => dirtyLanesRef.current.set(`${field}:${lid}`, { replace });
+  const setQC   = (lid, key, val) => { markDirty("qcLanes", lid, false); setForm(f => ({ ...f, qcLanes:   { ...f.qcLanes,   [lid]: { ...(f.qcLanes[lid]   || {}), [key]: val } } })); };
+  const setLoad = (lid, key, val) => { markDirty("loadLanes", lid, false); setForm(f => ({ ...f, loadLanes: { ...f.loadLanes, [lid]: { ...(f.loadLanes[lid] || {}), [key]: val } } })); };
+  const resetQC   = (lid) => { markDirty("qcLanes", lid, true); setForm(f => ({ ...f, qcLanes:   { ...f.qcLanes,   [lid]: {} } })); };
+  const resetLoad = (lid) => { markDirty("loadLanes", lid, true); setForm(f => ({ ...f, loadLanes: { ...f.loadLanes, [lid]: {} } })); };
 
   const card  = { background: "#fff", borderRadius: 0, padding: "16px 20px", marginBottom: 14, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" };
   const lbl   = { display: "block", fontWeight: 700, fontSize: 12, color: "#6b7280", marginBottom: 6 };
@@ -4244,6 +4297,41 @@ const Admin = ({ trucks, queue, onUpdate, onDeleteTruck }) => {
           ))}
         </select>
       </div>
+
+      {/* ประวัติการแก้ไข — ตรวจสอบย้อนหลังว่ารถคันนี้ถูกเขียนทับ/เปลี่ยนอะไรไปบ้าง เมื่อไหร่ */}
+      {truck && (
+        <div style={card}>
+          <button onClick={() => { const next = !historyOpen; setHistoryOpen(next); if (next && !history.length) loadHistory(); }}
+            style={{ background: "none", border: "none", padding: 0, fontWeight: 800, fontSize: 14, color: "#111", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            📜 ประวัติการแก้ไข {historyOpen ? "▲" : "▼"}
+          </button>
+          {historyOpen && (
+            <div style={{ marginTop: 12 }}>
+              {historyLoading && <div style={{ fontSize: 13, color: "#6b7280" }}>กำลังโหลด...</div>}
+              {!historyLoading && history.length === 0 && <div style={{ fontSize: 13, color: "#6b7280" }}>ไม่พบประวัติ</div>}
+              {!historyLoading && history.length > 0 && (
+                <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {history.map(h => {
+                    const changed = h.action === "UPDATE" ? diffFields(h.old_data, h.new_data) : [];
+                    return (
+                      <div key={h.id} style={{ borderLeft: "3px solid #d1d5db", paddingLeft: 10, fontSize: 12.5 }}>
+                        <div style={{ fontWeight: 700 }}>
+                          {new Date(h.changed_at).toLocaleString("th-TH")} — {h.action === "INSERT" ? "สร้างรถ" : h.action === "DELETE" ? "ลบรถ" : "แก้ไข"}
+                        </div>
+                        {h.action === "UPDATE" && (
+                          <div style={{ color: changed.length ? "#374151" : "#9ca3af" }}>
+                            {changed.length ? `เปลี่ยน: ${changed.join(", ")}` : "(ไม่พบความต่าง)"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Merge — แสดงเฉพาะเมื่อมีรถ plate เดียวกันในระบบ */}
       {truck && duplicateTrucks.length > 0 && (
@@ -5856,6 +5944,17 @@ export default function App() {
     }
   };
 
+  // patch เฉพาะ lane เดียวใน qcLanes/sampleLanes/loadLanes แบบ atomic ที่ฝั่ง DB
+  // (wh_trucks_patch_lane) แทนการอ่าน object ทั้งก้อนจาก state มา spread แล้วส่งกลับทั้งก้อน
+  // ป้องกันกรณี 2 อุปกรณ์บันทึกคนละ lane ของรถคันเดียวกันใกล้ๆ กัน แล้ว snapshot เก่าของ
+  // ฝั่งหนึ่งไปทับ lane ที่อีกฝั่งเพิ่งบันทึกในก้อนเดียวกันทิ้ง (ดู supabase-add-lane-patch-and-audit.sql)
+  const handleUpdateLane = async (id, field, laneId, value, replace = false) => {
+    const { data: updated, error } = await supabase.rpc("wh_trucks_patch_lane", { p_id: id, p_field: field, p_lane: laneId, p_value: value, p_replace: replace });
+    if (error) throw error;
+    setTrucks(prev => prev.map(t => t.id === id ? updated : t));
+    return updated;
+  };
+
   const handleDeleteTruck = async (id) => {
     await supabase.from("wh_trucks").delete().eq("id", id);
   };
@@ -5893,7 +5992,10 @@ export default function App() {
       const match = sortedQueue.find(q => plateNum(q.plate) === plateNum(truck.plate) && plateNum(q.plate) !== "" && !usedQueueIds.has(q.id));
       if (!match) continue;
       usedQueueIds.add(match.id);
-      await supabase.from("wh_trucks").upsert({ id: truck.id, data: { ...truck, plate: match.plate, customerGroup: match.customerGroup, zone: match.zone, queueId: match.id, entryTime: match.entryTime, exitTime: match.exitTime } });
+      // ใช้ wh_trucks_patch (atomic merge ฝั่ง DB) แทน upsert ทับ data ทั้งก้อน — ป้องกัน
+      // ไม่ให้ truck snapshot เก่าที่ค้างอยู่ใน state ของแท็บนี้ไปทับ qcLanes/sampleLanes/loadLanes
+      // ที่เพิ่งถูกบันทึกสดๆ จากอุปกรณ์อื่น (ดูปัญหาเดียวกันที่แก้ไว้ใน handleUpdate ด้านบน)
+      await supabase.rpc("wh_trucks_patch", { p_id: truck.id, p_patch: { plate: match.plate, customerGroup: match.customerGroup, zone: match.zone, queueId: match.id, entryTime: match.entryTime, exitTime: match.exitTime } });
     }
   };
 
@@ -6027,7 +6129,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="🌡️" title={tabs.find(t => t.id === "qc_parts").label} color="#0369a1" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <QC trucks={trucks} onUpdate={handleUpdate} laneId="lane_parts" detailMapByChannel={detailMapByChannel} />
+          <QC trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_parts" detailMapByChannel={detailMapByChannel} />
         </div>
       </div>
     );
@@ -6038,7 +6140,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="🌡️" title={tabs.find(t => t.id === "qc_head").label} color="#0369a1" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <QC trucks={trucks} onUpdate={handleUpdate} laneId="lane_head" detailMapByChannel={detailMapByChannel} />
+          <QC trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_head" detailMapByChannel={detailMapByChannel} />
         </div>
       </div>
     );
@@ -6049,7 +6151,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="🌡️" title={tabs.find(t => t.id === "qc_pork").label} color="#0369a1" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <QC trucks={trucks} onUpdate={handleUpdate} laneId="lane_pork" detailMapByChannel={detailMapByChannel} />
+          <QC trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_pork" detailMapByChannel={detailMapByChannel} />
         </div>
       </div>
     );
@@ -6061,7 +6163,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="🥩" title={tabs.find(t => t.id === "loading_parts").label} color="#c2410c" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <LoadingYard trucks={trucks} onUpdate={handleUpdate} laneId="lane_parts" masterLane={masterLane} />
+          <LoadingYard trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_parts" masterLane={masterLane} />
         </div>
       </div>
     );
@@ -6072,7 +6174,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="🐷" title={tabs.find(t => t.id === "loading_head").label} color="#7c3aed" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <LoadingYard trucks={trucks} onUpdate={handleUpdate} laneId="lane_head" masterLane={masterLane} />
+          <LoadingYard trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_head" masterLane={masterLane} />
         </div>
       </div>
     );
@@ -6083,7 +6185,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="🐖" title={tabs.find(t => t.id === "loading_pork").label} color="#be123c" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <LoadingYard trucks={trucks} onUpdate={handleUpdate} laneId="lane_pork" masterLane={masterLane} />
+          <LoadingYard trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_pork" masterLane={masterLane} />
         </div>
       </div>
     );
@@ -6095,7 +6197,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="📷" title={tabs.find(t => t.id === "sample_parts").label} color="#0d9488" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} laneId="lane_parts" detailMapByChannel={detailMapByChannel} />
+          <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_parts" detailMapByChannel={detailMapByChannel} />
         </div>
       </div>
     );
@@ -6106,7 +6208,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="📷" title={tabs.find(t => t.id === "sample_head").label} color="#0d9488" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} laneId="lane_head" detailMapByChannel={detailMapByChannel} />
+          <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_head" detailMapByChannel={detailMapByChannel} />
         </div>
       </div>
     );
@@ -6117,7 +6219,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Sarabun','Noto Sans Thai',sans-serif" }}>
         <KioskHeader emoji="📷" title={tabs.find(t => t.id === "sample_pork").label} color="#0d9488" />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 14px 60px" }}>
-          <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} laneId="lane_pork" detailMapByChannel={detailMapByChannel} />
+          <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_pork" detailMapByChannel={detailMapByChannel} />
         </div>
       </div>
     );
@@ -6173,22 +6275,22 @@ export default function App() {
         {tab === "lg"        && <LGUpload queue={queue} onSetQueue={handleSetQueue} queueNext={queueNext} onSetQueueNext={handleSetQueueNext} />}
         {tab === "driver"    && <DriverScan queue={queue} trucks={trucks} onScan={handleScan} skipGeofence />}
         {tab === "picking"   && <Picking trucks={trucks} queue={queue} onUpdate={handleUpdate} detailMapByChannel={detailMapByChannel} />}
-        {tab === "qc_parts"  && <QC trucks={trucks} onUpdate={handleUpdate} laneId="lane_parts" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
-        {tab === "qc_head"   && <QC trucks={trucks} onUpdate={handleUpdate} laneId="lane_head" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
-        {tab === "qc_pork"   && <QC trucks={trucks} onUpdate={handleUpdate} laneId="lane_pork" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
-        {tab === "loading_parts" && <LoadingYard trucks={trucks} onUpdate={handleUpdate} laneId="lane_parts" masterLane={masterLane} onBack={() => setTab(prevTab)} />}
-        {tab === "loading_head"  && <LoadingYard trucks={trucks} onUpdate={handleUpdate} laneId="lane_head" masterLane={masterLane} onBack={() => setTab(prevTab)} />}
-        {tab === "loading_pork"  && <LoadingYard trucks={trucks} onUpdate={handleUpdate} laneId="lane_pork" masterLane={masterLane} onBack={() => setTab(prevTab)} />}
-        {tab === "sample_parts"  && <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} laneId="lane_parts" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
-        {tab === "sample_head"   && <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} laneId="lane_head" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
-        {tab === "sample_pork"   && <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} laneId="lane_pork" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
+        {tab === "qc_parts"  && <QC trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_parts" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
+        {tab === "qc_head"   && <QC trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_head" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
+        {tab === "qc_pork"   && <QC trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_pork" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
+        {tab === "loading_parts" && <LoadingYard trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_parts" masterLane={masterLane} onBack={() => setTab(prevTab)} />}
+        {tab === "loading_head"  && <LoadingYard trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_head" masterLane={masterLane} onBack={() => setTab(prevTab)} />}
+        {tab === "loading_pork"  && <LoadingYard trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_pork" masterLane={masterLane} onBack={() => setTab(prevTab)} />}
+        {tab === "sample_parts"  && <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_parts" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
+        {tab === "sample_head"   && <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_head" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
+        {tab === "sample_pork"   && <RandomSampleCheck trucks={trucks} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} laneId="lane_pork" detailMapByChannel={detailMapByChannel} onBack={() => setTab(prevTab)} />}
         {tab === "overview_log"  && <OverviewLog trucks={trucks} />}
         {tab === "work_tracking" && <WorkTracking trucks={trucks} queue={queue} detailMapByChannel={detailMapByChannel} masterLane={masterLane} />}
         {tab === "planning"      && <Planning trucks={trucks} queue={queue} onUpdate={handleUpdate} />}
         {tab === "master_upload" && <MasterUpload masterLane={masterLane} onMasterChange={handleMasterChange} />}
         {tab === "detail_loading" && <DetailLoading masterLane={masterLane} onDetailChange={handleDetailChange} />}
         {tab === "download"       && <Download onReset={handleReset} />}
-        {tab === "admin"          && <Admin trucks={trucks} queue={queue} onUpdate={handleUpdate} onDeleteTruck={handleDeleteTruck} />}
+        {tab === "admin"          && <Admin trucks={trucks} queue={queue} onUpdate={handleUpdate} onUpdateLane={handleUpdateLane} onDeleteTruck={handleDeleteTruck} />}
       </div>
 
       {/* QR Code Modal */}
