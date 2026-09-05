@@ -5279,8 +5279,24 @@ const EntryStatTile = ({ icon, accent, title, count, prevCount, onTimePct, onTim
 );
 
 const WorkTracking = ({ trucks, queue, detailMapByChannel = {}, masterLane = [] }) => {
-  const today = cycleDateStr();
+  const [today, setToday]    = useState(() => cycleDateStr());
   const [date, setDate]       = useState(today);
+
+  // จอ Tracking มักเปิดค้างยาวๆ (kiosk) — ถ้าไม่มี effect นี้ พอข้ามวันทำงาน (cron ปิดวัน/archive)
+  // "today" ที่เคย const ไว้ตอน mount จะไม่ขยับ ทำให้ date === today ค้างจริง แต่พอเทียบกับ archive
+  // ที่เพิ่งถูกสร้างของวันเดิม กลายเป็นค้างดู snapshot แช่แข็งของเมื่อวานไปเรื่อยๆ ข้อมูลวันใหม่ที่กรอกสดๆ
+  // จะไม่โผล่ที่นี่เลยจนกว่าจะ reload มือ — จึงต้อง poll เช็ควันที่ทุก 30 วิ แล้วขยับ date ตามเฉพาะกรณี
+  // ที่ยังดู "วันนี้" อยู่ (ไม่แตะ date ที่ผู้ใช้ตั้งใจเลือกดูย้อนหลัง)
+  useEffect(() => {
+    const id = setInterval(() => {
+      const t = cycleDateStr();
+      setToday(prevToday => {
+        if (t !== prevToday) setDate(d => (d === prevToday ? t : d));
+        return t;
+      });
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
   const [archiveData, setArchiveData] = useState(null);
   const [loadingArchive, setLoadingArchive] = useState(false);
   const [prevArchiveData, setPrevArchiveData] = useState(null);
@@ -5854,7 +5870,25 @@ export default function App() {
       .on("postgres_changes", { event: "*", schema: "public", table: "wh_trucks" }, () => fetchTrucks().then(setTrucks).catch(err => console.error("fetchTrucks failed:", err)))
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // Realtime websocket ตายเงียบๆ ได้ (จอ kiosk เปิดค้างข้ามคืน, เครื่อง sleep, เน็ตสะดุด) แล้ว
+    // postgres_changes จะไม่ยิงมาอีกเลยจนกว่าจะ reload มือ — จึงต้อง resync ทุกครั้งที่แท็บกลับมา
+    // active/เน็ตกลับมา และตั้ง poll สำรองไว้เผื่อ event เหล่านี้ก็ไม่ยิง (mobile Safari บางรุ่น)
+    const resync = () => {
+      fetchQueue().then(setQueue);
+      fetchQueueNext().then(setQueueNext).catch(err => console.error("fetchQueueNext failed:", err));
+      fetchTrucks().then(setTrucks).catch(err => console.error("fetchTrucks failed:", err));
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") resync(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", resync);
+    const pollId = setInterval(resync, 60000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", resync);
+      clearInterval(pollId);
+    };
   }, []);
 
   // Recompute detailMapByChannel whenever masterLane or source files change
